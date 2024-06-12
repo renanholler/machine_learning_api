@@ -19,6 +19,18 @@ def preprocess_data(data):
             data[column] = le.fit_transform(data[column])
     return data
 
+def normalize_data(data):
+    scaler = StandardScaler()
+    return scaler.fit_transform(data)
+
+def plot_to_base64(fig):
+    img = io.BytesIO()
+    fig.savefig(img, format='png')
+    img.seek(0)
+    img_base64 = base64.b64encode(img.read()).decode('utf-8')
+    plt.close(fig)
+    return img_base64
+
 def generate_3d_plot(data, labels, title):
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
@@ -38,29 +50,64 @@ def generate_3d_plot(data, labels, title):
     return encoded_image
 
 def kmeans_elbow(data, use_pca=False):
-    data = preprocess_data(data)
+    # Verificar se data é uma string CSV ou um DataFrame
+    if isinstance(data, str):
+        df = pd.read_csv(io.StringIO(data))
+    else:
+        df = data
+    
+    # Preprocessar os dados
+    df_processed = preprocess_data(df)
+    X = df_processed.drop('classe', axis=1)
+    
+    # Normalizar os dados
+    X_scaled = normalize_data(X)
     
     if use_pca:
         pca = PCA(n_components=2)
-        data = pca.fit_transform(data)
+        X_scaled = pca.fit_transform(X_scaled)
     
     distortions = []
     K = range(1, 10)
     for k in K:
-        kmeanModel = KMeans(n_clusters=k)
-        kmeanModel.fit(data)
+        kmeanModel = KMeans(n_clusters=k, random_state=42)
+        kmeanModel.fit(X_scaled)
         distortions.append(kmeanModel.inertia_)
     
     optimal_k = distortions.index(min(distortions)) + 1
-    kmeans = KMeans(n_clusters=optimal_k)
-    clusters = kmeans.fit_predict(data)
+    kmeans = KMeans(n_clusters=optimal_k, random_state=42)
+    clusters = kmeans.fit_predict(X_scaled)
+    
+    # Gerar gráfico do cotovelo
+    fig1 = plt.figure(figsize=(10, 6))
+    plt.plot(range(1, 10), distortions, marker='o')
+    plt.xlabel('Número de Clusters')
+    plt.ylabel('Soma dos Quadrados das Distâncias Internas (Inertia)')
+    plt.title('Método do Cotovelo')
+    elbow_plot_base64 = plot_to_base64(fig1)
+    
+    # Gerar gráfico 3D dos clusters (se não usar PCA)
+    cluster_plot_base64 = None
+    if not use_pca and X_scaled.shape[1] >= 3:
+        fig2 = plt.figure(figsize=(12, 10))
+        ax = fig2.add_subplot(111, projection='3d')
+        scatter = ax.scatter(X_scaled[:, 0], X_scaled[:, 1], X_scaled[:, 2], c=clusters, cmap='viridis')
+        legend1 = ax.legend(*scatter.legend_elements(), title="Clusters")
+        ax.add_artist(legend1)
+        ax.set_title('K-means clustering without PCA (3D visualization)')
+        ax.set_xlabel('Normalized Feature 1')
+        ax.set_ylabel('Normalized Feature 2')
+        ax.set_zlabel('Normalized Feature 3')
+        cluster_plot_base64 = plot_to_base64(fig2)
     
     return {
         'method': 'elbow',
         'optimal_k': optimal_k,
         'distortions': distortions,
         'clusters': clusters.tolist(),
-        'centroids': kmeans.cluster_centers_.tolist()
+        'centroids': kmeans.cluster_centers_.tolist(),
+        'elbow_plot': elbow_plot_base64,
+        'cluster_plot': cluster_plot_base64
     }
 
 def kmeans_coeficiente(data, use_pca=False):
