@@ -49,22 +49,19 @@ def generate_3d_plot(data, labels, title):
     encoded_image = base64.b64encode(image_png).decode('utf-8')
     return encoded_image
 
+# Método KMeans Elbow
 def kmeans_elbow(data, use_pca=False):
-    # Verificar se data é uma string CSV ou um DataFrame
     if isinstance(data, str):
         df = pd.read_csv(io.StringIO(data))
     else:
         df = data
     
-    # Preprocessar os dados
     df_processed = preprocess_data(df)
     X = df_processed.drop('classe', axis=1)
-    
-    # Normalizar os dados
     X_scaled = normalize_data(X)
     
     if use_pca:
-        pca = PCA(n_components=2)
+        pca = PCA(n_components=3)
         X_scaled = pca.fit_transform(X_scaled)
     
     distortions = []
@@ -78,7 +75,7 @@ def kmeans_elbow(data, use_pca=False):
     kmeans = KMeans(n_clusters=optimal_k, random_state=42)
     clusters = kmeans.fit_predict(X_scaled)
     
-    # Gerar gráfico do cotovelo
+    # Gráfico do cotovelo
     fig1 = plt.figure(figsize=(10, 6))
     plt.plot(range(1, 10), distortions, marker='o')
     plt.xlabel('Número de Clusters')
@@ -86,19 +83,10 @@ def kmeans_elbow(data, use_pca=False):
     plt.title('Método do Cotovelo')
     elbow_plot_base64 = plot_to_base64(fig1)
     
-    # Gerar gráfico 3D dos clusters (se não usar PCA)
+    # Gráfico 3D dos clusters
     cluster_plot_base64 = None
-    if not use_pca and X_scaled.shape[1] >= 3:
-        fig2 = plt.figure(figsize=(12, 10))
-        ax = fig2.add_subplot(111, projection='3d')
-        scatter = ax.scatter(X_scaled[:, 0], X_scaled[:, 1], X_scaled[:, 2], c=clusters, cmap='viridis')
-        legend1 = ax.legend(*scatter.legend_elements(), title="Clusters")
-        ax.add_artist(legend1)
-        ax.set_title('K-means clustering without PCA (3D visualization)')
-        ax.set_xlabel('Normalized Feature 1')
-        ax.set_ylabel('Normalized Feature 2')
-        ax.set_zlabel('Normalized Feature 3')
-        cluster_plot_base64 = plot_to_base64(fig2)
+    if X_scaled.shape[1] >= 3:
+        cluster_plot_base64 = generate_3d_plot(X_scaled, clusters, 'K-means clustering (3D visualization)')
     
     return {
         'method': 'elbow',
@@ -106,18 +94,25 @@ def kmeans_elbow(data, use_pca=False):
         'distortions': distortions,
         'clusters': clusters.tolist(),
         'centroids': kmeans.cluster_centers_.tolist(),
-        'elbow_plot': elbow_plot_base64,
-        'cluster_plot': cluster_plot_base64
+        'plot_2d': elbow_plot_base64,
+        'plot_3d': cluster_plot_base64
     }
 
+# Método KMeans Coeficiente
 def kmeans_coeficiente(data, use_pca=False):
-    data = preprocess_data(data)
+    if isinstance(data, str):
+        df = pd.read_csv(io.StringIO(data))
+    else:
+        df = data
+    
+    df_processed = preprocess_data(df)
+    X_scaled = normalize_data(df_processed)
     
     if use_pca:
         pca = PCA(n_components=3)
-        data_pca = pca.fit_transform(data)
+        data_pca = pca.fit_transform(X_scaled)
     else:
-        data_pca = data
+        data_pca = X_scaled
     
     range_n_clusters = range(2, 10)
     silhouette_avg = []
@@ -131,51 +126,55 @@ def kmeans_coeficiente(data, use_pca=False):
     kmeans = KMeans(n_clusters=best_n_clusters)
     clusters = kmeans.fit_predict(data_pca)
 
-    df_pca = pd.DataFrame(data_pca, columns=[f'PC{i+1}' for i in range(data_pca.shape[1])])
-    df_pca['Cluster'] = clusters
-
-    # Plot dos componentes principais
-    plt.figure(figsize=(16, 10))
-    sns.scatterplot(x="PC1", y="PC2", hue="Cluster", palette=sns.color_palette("hsv", best_n_clusters), data=df_pca, legend="full", alpha=0.7)
-    plt.title(f'KMeans Clustering com PCA (n_clusters={best_n_clusters})')
-    buffer = io.BytesIO()
-    plt.savefig(buffer, format='png')
-    buffer.seek(0)
-    image_png = buffer.getvalue()
-    buffer.close()
-    encoded_image_2d = base64.b64encode(image_png).decode('utf-8')
-    plt.close()
-
-    # Plot em 3D se aplicável
-    plot_3d = None
-    if use_pca and data_pca.shape[1] >= 3:
-        plot_3d = generate_3d_plot(data_pca, clusters, f'KMeans Clustering com PCA (n_clusters={best_n_clusters})')
-
+    # Gráfico de Silhouette
+    fig1 = plt.figure(figsize=(10, 6))
+    plt.plot(range_n_clusters, silhouette_avg, marker='o')
+    plt.xlabel('Número de Clusters')
+    plt.ylabel('Coeficiente de Silhouette')
+    plt.title('Coeficiente de Silhouette para diferentes números de clusters')
+    silhouette_plot_base64 = plot_to_base64(fig1)
+    
+    # Gráfico 3D dos clusters
+    cluster_plot_base64 = None
+    if data_pca.shape[1] >= 3:
+        cluster_plot_base64 = generate_3d_plot(data_pca, clusters, 'K-means clustering (3D visualization)')
+    
     return {
         'method': 'coeficiente',
         'best_n_clusters': best_n_clusters,
         'silhouette_avg': silhouette_avg,
         'clusters': clusters.tolist(),
         'centroids': kmeans.cluster_centers_.tolist(),
-        'plot_2d': encoded_image_2d,
-        'plot_3d': plot_3d
+        'plot_2d': silhouette_plot_base64,
+        'plot_3d': cluster_plot_base64
     }
 
+# Método KMeans Manual
 def kmeans_manual(data, n_clusters, use_pca=False):
-    data = preprocess_data(data)
+    if isinstance(data, str):
+        df = pd.read_csv(io.StringIO(data))
+    else:
+        df = data
+    
+    df_processed = preprocess_data(df)
+    X_scaled = normalize_data(df_processed)
     
     if use_pca:
-        pca = PCA(n_components=2)
-        data = pca.fit_transform(data)
+        pca = PCA(n_components=3)
+        X_scaled = pca.fit_transform(X_scaled)
     
     kmeans = KMeans(n_clusters=n_clusters)
-    clusters = kmeans.fit_predict(data)
+    clusters = kmeans.fit_predict(X_scaled)
+    
+    # Gráfico 3D dos clusters
+    cluster_plot_base64 = generate_3d_plot(X_scaled, clusters, f'KMeans Clustering (n_clusters={n_clusters})')
     
     return {
         'method': 'manual',
         'n_clusters': n_clusters,
         'clusters': clusters.tolist(),
-        'centroids': kmeans.cluster_centers_.tolist()
+        'centroids': kmeans.cluster_centers_.tolist(),
+        'plot_3d': cluster_plot_base64
     }
 
 def cluster_data(csv_data, method, use_pca, n_clusters=None):
