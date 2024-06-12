@@ -75,7 +75,10 @@ def kmeans_elbow(data, use_pca=False):
     kmeans = KMeans(n_clusters=optimal_k, random_state=42)
     clusters = kmeans.fit_predict(X_scaled)
     
-    # Gráfico do cotovelo
+    # Calculate Silhouette Score
+    silhouette_avg = silhouette_score(X_scaled, clusters)
+    
+    # Generate Elbow Plot
     fig1 = plt.figure(figsize=(10, 6))
     plt.plot(range(1, 10), distortions, marker='o')
     plt.xlabel('Número de Clusters')
@@ -83,17 +86,15 @@ def kmeans_elbow(data, use_pca=False):
     plt.title('Método do Cotovelo')
     elbow_plot_base64 = plot_to_base64(fig1)
     
-    # Gráfico 3D dos clusters
+    # Generate 3D Cluster Plot
     cluster_plot_base64 = None
     if X_scaled.shape[1] >= 3:
         cluster_plot_base64 = generate_3d_plot(X_scaled, clusters, 'K-means clustering (3D visualization)')
     
     return {
         'method': 'elbow',
-        'optimal_k': optimal_k,
-        'distortions': distortions,
-        'clusters': clusters.tolist(),
-        'centroids': kmeans.cluster_centers_.tolist(),
+        'best_n_clusters': optimal_k,
+        'silhouette_score': silhouette_avg,
         'plot_2d': elbow_plot_base64,
         'plot_3d': cluster_plot_base64
     }
@@ -125,10 +126,13 @@ def kmeans_coeficiente(data, use_pca=False):
     best_n_clusters = range_n_clusters[silhouette_avg.index(max(silhouette_avg))]
     kmeans = KMeans(n_clusters=best_n_clusters)
     clusters = kmeans.fit_predict(data_pca)
+    
+    # Calculate Silhouette Score
+    silhouette_avg_best = silhouette_score(data_pca, clusters)
 
     # Gráfico de Silhouette
     fig1 = plt.figure(figsize=(10, 6))
-    plt.plot(range_n_clusters, silhouette_avg, marker='o')
+    plt.plot(list(range_n_clusters), silhouette_avg, marker='o')
     plt.xlabel('Número de Clusters')
     plt.ylabel('Coeficiente de Silhouette')
     plt.title('Coeficiente de Silhouette para diferentes números de clusters')
@@ -142,9 +146,7 @@ def kmeans_coeficiente(data, use_pca=False):
     return {
         'method': 'coeficiente',
         'best_n_clusters': best_n_clusters,
-        'silhouette_avg': silhouette_avg,
-        'clusters': clusters.tolist(),
-        'centroids': kmeans.cluster_centers_.tolist(),
+        'silhouette_score': silhouette_avg_best,
         'plot_2d': silhouette_plot_base64,
         'plot_3d': cluster_plot_base64
     }
@@ -166,14 +168,16 @@ def kmeans_manual(data, n_clusters, use_pca=False):
     kmeans = KMeans(n_clusters=n_clusters)
     clusters = kmeans.fit_predict(X_scaled)
     
+    # Calculate Silhouette Score
+    silhouette_avg = silhouette_score(X_scaled, clusters)
+    
     # Gráfico 3D dos clusters
     cluster_plot_base64 = generate_3d_plot(X_scaled, clusters, f'KMeans Clustering (n_clusters={n_clusters})')
     
     return {
         'method': 'manual',
-        'n_clusters': n_clusters,
-        'clusters': clusters.tolist(),
-        'centroids': kmeans.cluster_centers_.tolist(),
+        'best_n_clusters': n_clusters,
+        'silhouette_score': silhouette_avg,
         'plot_3d': cluster_plot_base64
     }
 
