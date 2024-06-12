@@ -70,3 +70,10 @@ Endpoint para clusterização usando diferentes métodos (Elbow, Coeficiente de 
     - JSON contendo o resultado da clusterização.
 
 ## Estrutura do Projeto
+pin3_api/
+├── models/
+│   ├── classification.py
+│   ├── clustering.py
+├── app.py
+├── requirements.txt
+
