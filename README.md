@@ -1,5 +1,3 @@
-# pin3_api
-
 Esta API fornece serviços de classificação e clusterização usando modelos de aprendizado de máquina.
 
 ## Pré-requisitos
